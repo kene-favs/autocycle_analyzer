@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Lock Scalper v1.9 — Strategy Simulator</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#1a1e2d; color:#d4d9e8;
+  font-family:'Consolas','Courier New',monospace; font-size:12px;
+  height:100vh; display:flex; flex-direction:column; overflow:hidden;
+}
+
+/* ── Header ── */
+.header {
+  background:#0f1319; border-bottom:1px solid #2a3047;
+  padding:6px 14px; display:flex; align-items:center; gap:18px;
+}
+.hdr-title { color:#7cb8ff; font-size:13px; font-weight:bold; letter-spacing:1px; }
+.hdr-sym   { color:#e8b86d; font-size:13px; }
+.hdr-sess  { color:#4caf50; font-size:11px; }
+.hdr-right { margin-left:auto; color:#6b7a9a; font-size:10px; }
+
+/* ── Account bar ── */
+.acct {
+  background:#141923; border-bottom:1px solid #2a3047;
+  padding:4px 14px; display:flex; gap:28px; align-items:center;
+}
+.stat { display:flex; flex-direction:column; }
+.slbl { color:#6b7a9a; font-size:9px; text-transform:uppercase; }
+.sval { font-size:13px; font-weight:bold; }
+.pos { color:#26a69a; } .neg { color:#ef5350; } .neu { color:#d4d9e8; }
+
+/* ── Layout ── */
+.main { display:flex; flex:1; overflow:hidden; }
+.chart-wrap { flex:1; position:relative; background:#1a1e2d; }
+canvas { display:block; }
+
+/* ── Side panel ── */
+.side {
+  width:210px; background:#141923; border-left:1px solid #2a3047;
+  padding:8px; display:flex; flex-direction:column; gap:8px; overflow-y:auto;
+}
+.sec { border:1px solid #2a3047; border-radius:3px; padding:7px; }
+.sec-title { color:#7cb8ff; font-size:9px; text-transform:uppercase; margin-bottom:5px; letter-spacing:1px; }
+
+/* controls */
+.atr-sel {
+  background:#1a1e2d; color:#d4d9e8; border:1px solid #2a3047;
+  padding:4px 6px; width:100%; font-family:monospace; font-size:11px; margin-bottom:5px;
+}
+.btn {
+  width:100%; border:none; padding:7px; cursor:pointer;
+  font-family:monospace; font-size:11px; border-radius:2px; letter-spacing:1px; margin-top:3px;
+}
+.btn-arm { background:#1565c0; color:#fff; }
+.btn-arm:hover { background:#1976d2; }
+.btn-arm:disabled { background:#2a3047; color:#6b7a9a; cursor:not-allowed; }
+.btn-rst { background:#424242; color:#fff; }
+.btn-rst:hover { background:#616161; }
+
+.spd-row { display:flex; align-items:center; gap:5px; margin-bottom:4px; }
+.spd-lbl { color:#6b7a9a; font-size:9px; width:35px; }
+input[type=range] { flex:1; accent-color:#7cb8ff; }
+
+/* state badge */
+.badge {
+  text-align:center; padding:5px 4px; border-radius:3px;
+  font-size:10px; font-weight:bold; letter-spacing:.5px;
+}
+
+/* level rows */
+.lvl { display:flex; justify-content:space-between; padding:2px 0; border-bottom:1px solid #1a1e2d; }
+.ll  { color:#6b7a9a; font-size:9px; }
+.lv  { font-size:10px; }
+
+/* ── Terminal ── */
+.term { height:148px; background:#0f1319; border-top:1px solid #2a3047; display:flex; flex-direction:column; }
+.tabs { display:flex; background:#141923; border-bottom:1px solid #2a3047; }
+.tab  { padding:4px 13px; font-size:11px; cursor:pointer; color:#6b7a9a; border-right:1px solid #2a3047; }
+.tab.act { color:#d4d9e8; border-bottom:2px solid #7cb8ff; }
+.tcont { flex:1; overflow-y:auto; padding:3px 4px; }
+
+/* table */
+table { width:100%; border-collapse:collapse; font-size:11px; }
+th { color:#6b7a9a; text-align:left; padding:2px 5px; border-bottom:1px solid #2a3047; font-weight:normal; font-size:9px; }
+td { padding:2px 5px; border-bottom:1px solid #141923; }
+tr:hover td { background:#1a1e2d; }
+
+/* log */
+.log-line { padding:1px 3px; font-size:10px; line-height:1.5; }
+.l-info { color:#7cb8ff; } .l-ok { color:#26a69a; }
+.l-warn { color:#e8b86d; } .l-err { color:#ef5350; } .l-dim { color:#6b7a9a; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span class="hdr-title">LOCK SCALPER v1.9</span>
+  <span class="hdr-sym">XAUUSD · 0.01 lot</span>
+  <span class="hdr-sess" id="sess">● LONDON SESSION</span>
+  <span class="hdr-right" id="sim-clock">SIM 09:00:00</span>
+</div>
+
+<div class="acct">
+  <div class="stat"><span class="slbl">Balance</span><span class="sval neu" id="s-bal">$100.00</span></div>
+  <div class="stat"><span class="slbl">Equity</span><span class="sval neu" id="s-eq">$100.00</span></div>
+  <div class="stat"><span class="slbl">Floating P&L</span><span class="sval neu" id="s-fl">$0.00</span></div>
+  <div class="stat"><span class="slbl">Spread</span><span class="sval" style="color:#e8b86d">$0.10</span></div>
+  <div class="stat"><span class="slbl">Bid / Ask</span><span class="sval neu" id="s-px">-- / --</span></div>
+  <div class="stat"><span class="slbl">Trades Done</span><span class="sval pos" id="s-tr">0</span></div>
+  <div class="stat"><span class="slbl">Net Earned</span><span class="sval pos" id="s-net">+$0.00</span></div>
+</div>
+
+<div class="main">
+  <div class="chart-wrap"><canvas id="cv"></canvas></div>
+
+  <div class="side">
+
+    <div class="sec">
+      <div class="sec-title">STATUS</div>
+      <div class="badge" id="badge" style="background:#1a1e2d;color:#6b7a9a">IDLE</div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">CONTROLS</div>
+      <div style="color:#6b7a9a;font-size:9px;margin-bottom:3px">Market / ATR</div>
+      <select class="atr-sel" id="atr-sel">
+        <option value="1.20">QUIET    ATR $1.20</option>
+        <option value="2.00" selected>NORMAL   ATR $2.00</option>
+        <option value="3.00">VOLATILE ATR $3.00</option>
+      </select>
+      <div class="spd-row">
+        <span class="spd-lbl">Speed</span>
+        <input type="range" id="spd" min="1" max="20" value="6">
+        <span style="color:#6b7a9a;font-size:9px;width:20px" id="spd-lbl">6x</span>
+      </div>
+      <button class="btn btn-arm" id="btn-arm" onclick="arm()">▶  ARM STRADDLE</button>
+      <button class="btn btn-rst" onclick="reset()">↺  RESET</button>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">LEVELS</div>
+      <div id="lvls"><span style="color:#6b7a9a;font-size:9px">— arm to begin —</span></div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">COST BREAKDOWN</div>
+      <div class="lvl"><span class="ll">2× Spread</span><span class="lv neg">−$0.20</span></div>
+      <div class="lvl"><span class="ll">4× Commission</span><span class="lv neg">−$0.12</span></div>
+      <div class="lvl"><span class="ll">Total Cost</span><span class="lv neg">−$0.32</span></div>
+      <div class="lvl" style="margin-top:3px"><span class="ll">Lock Profit</span><span class="lv pos" id="l-lock">$0.80</span></div>
+      <div class="lvl"><span class="ll" style="color:#d4d9e8;font-weight:bold">NET / TRADE</span>
+        <span class="lv" id="l-net" style="color:#26a69a;font-weight:bold">$0.48</span></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="term">
+  <div class="tabs">
+    <div class="tab act" id="tab-pos" onclick="showTab('pos',this)">Trade</div>
+    <div class="tab" id="tab-hist" onclick="showTab('hist',this)">History</div>
+    <div class="tab" id="tab-log" onclick="showTab('log',this)">Journal</div>
+  </div>
+  <div class="tcont" id="tcont"></div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// CONSTANTS
+// ─────────────────────────────────────────────────────────────
+const SPR = 0.10;          // full bid-ask spread
+const COM = 0.03;          // commission per leg
+const TRIGGER = 0.20;      // BUY must rise +$0.20 before SELL opens
+const LOCK_PCT = 0.40;
+
+// ─────────────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────────────
+let S = makeState();
+let ticker = null;
+let curTab = 'pos';
+let tradeHistory = [];
+let logLines = [];
+let frame = null;
+
+function makeState() {
+  return {
+    phase: 'idle',   // idle | buy_open | both_open | sl_frozen | loser_wait | done
+    mid: 2000.00,
+    tick: 0,
+    balance: 100.00,
+    earned: 0.00,
+    done_count: 0,
+
+    atr: 2.00,
+    tp: 2.00, sl: 1.20, lock: 0.80,
+
+    buy: null,  // { open_ask, entry_mid }
+    sell: null, // { open_bid, entry_mid }
+
+    buy_tp: null, buy_sl: null,
+    sell_tp: null, sell_sl: null,
+
+    frozen_leg: null,  // 'buy'|'sell'
+    frozen_price: null,
+    winner: null,
+
+    px_hist: [],   // { mid, t }
+    speed: 6,
+    ticket: 1,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+// PRICE SIMULATION
+// ─────────────────────────────────────────────────────────────
+function randn() {
+  const u = Math.random(), v = Math.random();
+  return Math.sqrt(-2*Math.log(u+1e-10)) * Math.cos(2*Math.PI*v);
+}
+function bid() { return +(S.mid - SPR/2).toFixed(2); }
+function ask() { return +(S.mid + SPR/2).toFixed(2); }
+
+function stepPrice() {
+  const vol = (S.atr / 500) * (S.speed / 6);
+  // mild mean-reversion toward buy_entry so price stays in view
+  const anchor = S.buy ? S.buy.entry_mid : S.mid;
+  const pull = (anchor - S.mid) * 0.005;
+  S.mid = +((S.mid + randn() * vol + pull).toFixed(2));
+}
+
+// ─────────────────────────────────────────────────────────────
+// STRATEGY
+// ─────────────────────────────────────────────────────────────
+function arm() {
+  if (S.phase !== 'idle' && S.phase !== 'done') return;
+
+  S.atr   = parseFloat(document.getElementById('atr-sel').value);
+  S.tp    = +Math.min(S.atr, 3.00).toFixed(2);
+  S.sl    = +(S.tp * 0.60).toFixed(2);
+  S.lock  = +(S.tp * 0.40).toFixed(2);
+
+  const oa = ask();
+  S.buy = { ticket: S.ticket++, open_ask: oa, entry_mid: S.mid, t: S.tick };
+  S.buy_tp = +(S.mid + S.tp).toFixed(2);
+  S.buy_sl = +(S.mid - S.sl).toFixed(2);
+  S.sell = null; S.sell_tp = null; S.sell_sl = null;
+  S.frozen_leg = null; S.frozen_price = null; S.winner = null;
+
+  S.phase = 'buy_open';
+  document.getElementById('btn-arm').disabled = true;
+  log(`BUY #${S.buy.ticket} opened @ ask ${oa.toFixed(2)}  |  TP ${S.buy_tp.toFixed(2)}  SL ${S.buy_sl.toFixed(2)}`, 'info');
+  log(`Waiting for price to rise +$${TRIGGER.toFixed(2)} → SELL will open`, 'dim');
+  updateCostPanel();
+}
+
+function openSell() {
+  const ob = bid();
+  S.sell = { ticket: S.ticket++, open_bid: ob, entry_mid: S.mid, t: S.tick };
+  S.sell_tp = +(S.mid - S.tp).toFixed(2);
+  S.sell_sl = +(S.mid + S.sl).toFixed(2);
+  S.phase = 'both_open';
+  log(`BUY rose +$${TRIGGER.toFixed(2)} → SELL #${S.sell.ticket} opened @ bid ${ob.toFixed(2)}`, 'ok');
+  log(`SELL: TP ${S.sell_tp.toFixed(2)}  SL ${S.sell_sl.toFixed(2)}`, 'dim');
+  log(`Spread pre-covered by the +$0.20 BUY move. Monitoring both legs...`, 'ok');
+}
+
+function freezeSL(leg) {
+  S.frozen_leg   = leg;
+  S.frozen_price = leg === 'sell' ? S.sell_sl : S.buy_sl;
+  S.phase = 'sl_frozen';
+  log(`❄️  ${leg.toUpperCase()} SL @ ${S.frozen_price.toFixed(2)} FROZEN — price passed through, NOT closing`, 'warn');
+  log(`Both legs remain open. Waiting for winner TP...`, 'dim');
+}
+
+function closeWinner(leg) {
+  S.winner = leg;
+  let wp, cp;
+
+  if (leg === 'buy') {
+    cp = bid();
+    wp = +(cp - S.buy.open_ask).toFixed(2);
+    log(`✅ BUY TP fired @ ${cp.toFixed(2)}  profit +$${wp.toFixed(2)}`, 'ok');
+    // set SELL SLTP to frozen SL price
+    if (!S.frozen_price) { S.frozen_price = S.sell_sl; S.frozen_leg = 'sell'; }
+    S.sell.sltp = S.frozen_price;
+    log(`SELL SLTP set to frozen price ${S.frozen_price.toFixed(2)} — needs $${+(bid()-S.frozen_price).toFixed(2)} retrace`, 'warn');
+  } else {
+    cp = ask();
+    wp = +(S.sell.open_bid - cp).toFixed(2);
+    log(`✅ SELL TP fired @ ${cp.toFixed(2)}  profit +$${wp.toFixed(2)}`, 'ok');
+    if (!S.frozen_price) { S.frozen_price = S.buy_sl; S.frozen_leg = 'buy'; }
+    S.buy.sltp = S.frozen_price;
+    log(`BUY SLTP set to frozen price ${S.frozen_price.toFixed(2)} — needs $${+(S.frozen_price-ask()).toFixed(2)} retrace`, 'warn');
+  }
+
+  S.winner_pnl = wp;
+  S.phase = 'loser_wait';
+}
+
+function closeLoser() {
+  let lp, cp;
+
+  if (S.winner === 'buy') {
+    cp = S.frozen_price - SPR/2; // closes at frozen bid
+    lp = +(S.sell.open_bid - (S.frozen_price + SPR/2)).toFixed(2);
+  } else {
+    cp = S.frozen_price + SPR/2;
+    lp = +((S.frozen_price - SPR/2) - S.buy.open_ask).toFixed(2);
+  }
+
+  const total_comm = COM * 4;
+  const gross = +(S.winner_pnl + lp).toFixed(2);
+  const net   = +(gross - total_comm).toFixed(2);
+
+  log(`SLTP fired @ ${S.frozen_price.toFixed(2)}  loss $${lp.toFixed(2)}`, 'info');
+  log(`━━ TRADE COMPLETE ━━  Winner: +$${S.winner_pnl.toFixed(2)}  Loser: $${lp.toFixed(2)}  Comm: -$${total_comm.toFixed(2)}  NET: ${net>=0?'+':''}$${net.toFixed(2)}`, net>=0?'ok':'err');
+
+  S.balance = +(S.balance + net).toFixed(2);
+  S.earned  = +(S.earned  + net).toFixed(2);
+  S.done_count++;
+
+  tradeHistory.unshift({
+    n: S.done_count,
+    wp: S.winner_pnl, lp, comm: total_comm, net,
+    time: fmtTime(S.tick)
+  });
+
+  S.phase = 'done';
+  document.getElementById('btn-arm').disabled = false;
+
+  // auto-rearm after 4 seconds
+  setTimeout(() => { if (S.phase === 'done') arm(); }, 4000);
+}
+
+// ─────────────────────────────────────────────────────────────
+// MAIN TICK
+// ─────────────────────────────────────────────────────────────
+function tick() {
+  const steps = Math.ceil(S.speed / 2);
+  for (let i = 0; i < steps; i++) {
+    S.tick++;
+    stepPrice();
+    S.px_hist.push({ mid: S.mid, bid: bid(), ask: ask(), t: S.tick });
+    if (S.px_hist.length > 280) S.px_hist.shift();
+    checkStrategy();
+  }
+  updateUI();
+  drawChart();
+}
+
+function checkStrategy() {
+  const b = bid(), a = ask();
+
+  if (S.phase === 'buy_open') {
+    if (b >= S.buy.entry_mid + TRIGGER) openSell();
+    return;
+  }
+
+  if (S.phase === 'both_open') {
+    // Check SL freeze
+    if (a >= S.sell_sl && !S.frozen_leg) { freezeSL('sell'); return; }
+    if (b <= S.buy_sl  && !S.frozen_leg) { freezeSL('buy');  return; }
+    // Check TP
+    if (b >= S.buy_tp)  { closeWinner('buy');  return; }
+    if (a <= S.sell_tp) { closeWinner('sell'); return; }
+  }
+
+  if (S.phase === 'sl_frozen') {
+    if (S.frozen_leg === 'sell') {
+      if (b >= S.buy_tp)  { closeWinner('buy');  return; }
+      if (a <= S.sell_tp) { closeWinner('sell'); return; }
+    } else {
+      if (a <= S.sell_tp) { closeWinner('sell'); return; }
+      if (b >= S.buy_tp)  { closeWinner('buy');  return; }
+    }
+  }
+
+  if (S.phase === 'loser_wait') {
+    if (S.winner === 'buy'  && b <= S.frozen_price) { closeLoser(); return; }
+    if (S.winner === 'sell' && a >= S.frozen_price) { closeLoser(); return; }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// UI
+// ─────────────────────────────────────────────────────────────
+function updateUI() {
+  document.getElementById('s-px').textContent = `${bid().toFixed(2)} / ${ask().toFixed(2)}`;
+
+  let fl = 0;
+  if (S.buy && S.phase !== 'done')  fl += bid() - S.buy.open_ask;
+  if (S.sell && S.phase !== 'done') fl += S.sell.open_bid - ask();
+  if (S.winner === 'buy'  && S.phase === 'loser_wait') fl = S.sell.open_bid - ask(); // only loser
+  if (S.winner === 'sell' && S.phase === 'loser_wait') fl = bid() - S.buy.open_ask;
+  fl = +fl.toFixed(2);
+
+  const eq = +(S.balance + fl).toFixed(2);
+  setV('s-bal', `$${S.balance.toFixed(2)}`, 'neu');
+  setV('s-eq',  `$${eq.toFixed(2)}`,        eq >= S.balance ? 'pos' : 'neg');
+  setV('s-fl',  `${fl>=0?'+':''}$${fl.toFixed(2)}`, fl>=0?'pos':'neg');
+  setV('s-tr',  S.done_count, 'pos');
+  setV('s-net', `${S.earned>=0?'+':''}$${S.earned.toFixed(2)}`, S.earned>=0?'pos':'neg');
+
+  updateBadge();
+  updateLevels();
+  if (curTab === 'pos') renderPositions();
+  if (curTab === 'log') renderLog();
+
+  // clock
+  const h = 9 + Math.floor(S.tick/1500);
+  const m = Math.floor((S.tick%1500)/25);
+  const s = (S.tick%25)*2;
+  document.getElementById('sim-clock').textContent =
+    `SIM ${String(h%24).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function setV(id, val, cls) {
+  const el = document.getElementById(id);
+  el.textContent = val;
+  el.className = 'sval ' + cls;
+}
+
+function updateBadge() {
+  const cfg = {
+    idle:       ['IDLE — READY',                '#2a3047','#6b7a9a'],
+    buy_open:   ['BUY OPEN — WAITING +$0.20',   '#1565c0','#90caf9'],
+    both_open:  ['BOTH OPEN — MONITORING',      '#1a6b3a','#69f0ae'],
+    sl_frozen:  ['SL FROZEN ❄️',                '#5d4037','#ffcc80'],
+    loser_wait: ['LOSER AWAITING SLTP RETRACE', '#4a148c','#ce93d8'],
+    done:       ['TRADE COMPLETE ✓',            '#1b5e20','#a5d6a7'],
+  };
+  const [txt, bg, col] = cfg[S.phase] || cfg.idle;
+  const el = document.getElementById('badge');
+  el.textContent = txt; el.style.background = bg; el.style.color = col;
+}
+
+function updateLevels() {
+  if (!S.buy) { document.getElementById('lvls').innerHTML = '<span style="color:#6b7a9a;font-size:9px">— arm to begin —</span>'; return; }
+  let h = '';
+  const fr = S.frozen_leg;
+  h += lvRow('BUY Entry',  S.buy.open_ask.toFixed(2),  '#42a5f5');
+  h += lvRow('BUY TP',     S.buy_tp?.toFixed(2)??'--', '#69f0ae');
+  h += lvRow('BUY SL',     fr==='buy' ? `❄ ${S.frozen_price.toFixed(2)}` : S.buy_sl?.toFixed(2)??'--', fr==='buy'?'#ce93d8':'#e8b86d');
+  if (S.sell) {
+    h += `<div style="height:4px"></div>`;
+    h += lvRow('SELL Entry', S.sell.open_bid.toFixed(2),  '#ef5350');
+    h += lvRow('SELL TP',    S.sell_tp?.toFixed(2)??'--', '#69f0ae');
+    h += lvRow('SELL SL',    fr==='sell' ? `❄ ${S.frozen_price.toFixed(2)}` : S.sell_sl?.toFixed(2)??'--', fr==='sell'?'#ce93d8':'#e8b86d');
+  }
+  if (S.sell?.sltp) h += lvRow('SELL SLTP', S.sell.sltp.toFixed(2), '#ce93d8');
+  if (S.buy?.sltp)  h += lvRow('BUY SLTP',  S.buy.sltp.toFixed(2),  '#ce93d8');
+  document.getElementById('lvls').innerHTML = h;
+}
+function lvRow(lbl, val, col) {
+  return `<div class="lvl"><span class="ll">${lbl}</span><span class="lv" style="color:${col}">${val}</span></div>`;
+}
+
+function updateCostPanel() {
+  const lock = S.lock, net = +(lock - 0.32).toFixed(2);
+  document.getElementById('l-lock').textContent = `$${lock.toFixed(2)}`;
+  document.getElementById('l-net').textContent  = `${net>=0?'+':''}$${net.toFixed(2)}`;
+  document.getElementById('l-net').style.color  = net > 0 ? '#26a69a' : '#ef5350';
+}
+
+function renderPositions() {
+  const tc = document.getElementById('tcont');
+  let rows = '';
+
+  function posRow(leg, pos, type, pnl_fn, sl_disp, tp_val, status) {
+    const pnl = +pnl_fn().toFixed(2);
+    const col = type === 'BUY' ? '#42a5f5' : '#ef5350';
+    rows += `<tr>
+      <td style="color:${col}">#${pos.ticket}</td>
+      <td>${fmtTime(pos.t)}</td>
+      <td style="color:${col};font-weight:bold">${type}</td>
+      <td>0.01</td>
+      <td>${type==='BUY'?pos.open_ask.toFixed(2):pos.open_bid.toFixed(2)}</td>
+      <td style="color:${sl_disp.startsWith('❄')?'#ce93d8':'#e8b86d'}">${sl_disp}</td>
+      <td style="color:#69f0ae">${tp_val}</td>
+      <td>${type==='BUY'?bid().toFixed(2):ask().toFixed(2)}</td>
+      <td style="color:#ef5350">-$${COM.toFixed(2)}</td>
+      <td style="color:${pnl>=0?'#26a69a':'#ef5350'}">${pnl>=0?'+':''}$${pnl.toFixed(2)}</td>
+      <td style="color:#6b7a9a;font-size:9px">${status}</td>
+    </tr>`;
+  }
+
+  const ph = S.phase;
+  const open_phases = ['buy_open','both_open','sl_frozen','loser_wait'];
+
+  if (S.buy && open_phases.includes(ph) && S.winner !== 'buy') {
+    const sl = S.frozen_leg==='buy' ? `❄ ${S.frozen_price.toFixed(2)}` : S.buy_sl?.toFixed(2)??'--';
+    const tp = S.buy.sltp ? `SLTP ${S.buy.sltp.toFixed(2)}` : S.buy_tp?.toFixed(2)??'--';
+    const st = ph==='buy_open'?'WAIT +$0.20': S.frozen_leg==='buy'?'SL FROZEN': S.winner==='sell'?'AWAITING SLTP':'MONITORING';
+    posRow('buy', S.buy, 'BUY', ()=>bid()-S.buy.open_ask, sl, tp, st);
+  }
+  if (S.sell && open_phases.includes(ph) && S.winner !== 'sell') {
+    const sl = S.frozen_leg==='sell' ? `❄ ${S.frozen_price.toFixed(2)}` : S.sell_sl?.toFixed(2)??'--';
+    const tp = S.sell?.sltp ? `SLTP ${S.sell.sltp.toFixed(2)}` : S.sell_tp?.toFixed(2)??'--';
+    const st = S.frozen_leg==='sell'?'SL FROZEN': S.winner==='buy'?'AWAITING SLTP':'MONITORING';
+    posRow('sell', S.sell, 'SELL', ()=>S.sell.open_bid-ask(), sl, tp, st);
+  }
+
+  if (!rows) rows = `<tr><td colspan="11" style="color:#6b7a9a;text-align:center;padding:10px">No open positions</td></tr>`;
+
+  tc.innerHTML = `<table><thead><tr>
+    <th>#</th><th>Time</th><th>Type</th><th>Lots</th><th>Open</th>
+    <th>S/L</th><th>T/P</th><th>Price</th><th>Comm</th><th>Profit</th><th>Status</th>
+  </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderHistory() {
+  if (!tradeHistory.length) {
+    document.getElementById('tcont').innerHTML = `<div class="log-line l-dim">No completed trades yet.</div>`;
+    return;
+  }
+  let rows = tradeHistory.map(h => `<tr>
+    <td>#${h.n}</td><td>${h.time}</td>
+    <td style="color:#26a69a">+$${h.wp.toFixed(2)}</td>
+    <td style="color:#ef5350">$${h.lp.toFixed(2)}</td>
+    <td style="color:#ef5350">-$${h.comm.toFixed(2)}</td>
+    <td style="color:${h.net>=0?'#26a69a':'#ef5350'};font-weight:bold">${h.net>=0?'+':''}$${h.net.toFixed(2)}</td>
+  </tr>`).join('');
+  document.getElementById('tcont').innerHTML = `<table><thead><tr>
+    <th>Trade</th><th>Time</th><th>Winner</th><th>Loser</th><th>Comm</th><th>Net</th>
+  </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderLog() {
+  document.getElementById('tcont').innerHTML =
+    logLines.slice(0,60).map(l=>`<div class="log-line l-${l.cls}">[${l.t}] ${l.msg}</div>`).join('') ||
+    `<div class="log-line l-dim">Journal empty</div>`;
+}
+
+function log(msg, cls='dim') {
+  logLines.unshift({ msg, cls, t: fmtTime(S.tick) });
+  if (logLines.length > 80) logLines.pop();
+}
+
+function fmtTime(t) {
+  const h = 9+Math.floor(t/1500), m=Math.floor((t%1500)/25), s=(t%25)*2;
+  return `${String(h%24).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// CHART
+// ─────────────────────────────────────────────────────────────
+const cv  = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+function resize() {
+  const w = cv.parentElement.clientWidth;
+  const h = cv.parentElement.clientHeight;
+  cv.width = w; cv.height = h;
+}
+window.addEventListener('resize', () => { resize(); drawChart(); });
+
+function toY(p, mn, mx, H) { return H - ((p - mn) / (mx - mn)) * H; }
+
+function drawChart() {
+  resize();
+  const W = cv.width, H = cv.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#1a1e2d';
+  ctx.fillRect(0,0,W,H);
+
+  const hist = S.px_hist;
+  if (hist.length < 2) {
+    ctx.fillStyle='#2a3047'; ctx.font='13px Consolas'; ctx.textAlign='center';
+    ctx.fillText('Lock Scalper v1.9 — Sequential Straddle Simulator', W/2, H/2-10);
+    ctx.fillStyle='#6b7a9a'; ctx.font='11px Consolas';
+    ctx.fillText('Press  ▶ ARM STRADDLE  to begin', W/2, H/2+14);
+    return;
+  }
+
+  const RW = W - 68; // right margin for labels
+
+  // Collect all prices + levels to determine Y range
+  const pxArr = hist.map(p=>p.mid);
+  const extras = [S.buy_tp, S.buy_sl, S.sell_tp, S.sell_sl, S.frozen_price, S.buy?.sltp, S.sell?.sltp].filter(v=>v!=null);
+  const all = [...pxArr, ...extras];
+  let mn = Math.min(...all) - 0.3;
+  let mx = Math.max(...all) + 0.3;
+  if (mx - mn < 1.0) { const c=(mx+mn)/2; mn=c-0.8; mx=c+0.8; }
+
+  // Grid
+  ctx.strokeStyle='#232840'; ctx.lineWidth=1;
+  for (let i=0; i<=6; i++) {
+    const y = (i/6)*H;
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(RW,y); ctx.stroke();
+    const p = mx - (i/6)*(mx-mn);
+    ctx.fillStyle='#3a4060'; ctx.font='9px Consolas'; ctx.textAlign='left';
+    ctx.fillText(p.toFixed(2), RW+2, y+3);
+  }
+
+  // Helper: draw horizontal level line
+  function hLine(price, color, label, dashed=true) {
+    if (price==null) return;
+    const y = toY(price, mn, mx, H);
+    if (y<-2||y>H+2) return;
+    ctx.beginPath();
+    ctx.strokeStyle = color; ctx.lineWidth = 1;
+    if (dashed) ctx.setLineDash([4,4]); else ctx.setLineDash([]);
+    ctx.moveTo(0,y); ctx.lineTo(RW,y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = color; ctx.font='9px Consolas'; ctx.textAlign='left';
+    ctx.fillText(`${label} ${price.toFixed(2)}`, RW+2, y-1);
+  }
+
+  // Spread band around current price
+  const curBid = bid(), curAsk = ask();
+  const yBid = toY(curBid, mn, mx, H);
+  const yAsk = toY(curAsk, mn, mx, H);
+  ctx.fillStyle='rgba(124,184,255,0.07)';
+  ctx.fillRect(0, Math.min(yBid,yAsk), RW, Math.abs(yBid-yAsk)+1);
+
+  // TP lines
+  hLine(S.buy_tp,  '#4caf50', 'BUY TP ');
+  hLine(S.sell_tp, '#81c784', 'SEL TP ');
+
+  // SL lines
+  const frz = S.frozen_leg;
+  if (frz==='sell') {
+    hLine(S.frozen_price, '#ce93d8', '❄ SELL ');
+  } else {
+    hLine(S.sell_sl, '#e8b86d', 'SEL SL ');
+  }
+  if (frz==='buy') {
+    hLine(S.frozen_price, '#ce93d8', '❄ BUY  ');
+  } else {
+    hLine(S.buy_sl, '#ff8f00', 'BUY SL ');
+  }
+
+  // SLTP lines (purple)
+  hLine(S.sell?.sltp, '#ab47bc', 'SLTP   ');
+  hLine(S.buy?.sltp,  '#ab47bc', 'SLTP   ');
+
+  // Entry lines
+  if (S.buy)  hLine(S.buy.open_ask,  '#1976d2', 'BUY ▶  ', false);
+  if (S.sell) hLine(S.sell.open_bid, '#c62828', 'SELL ▶  ', false);
+
+  // Trigger line (while buy_open)
+  if (S.phase==='buy_open' && S.buy) {
+    hLine(S.buy.entry_mid + TRIGGER, '#5c6bc0', '▶SELL  ');
+  }
+
+  // Frozen SL flash zone
+  if (S.frozen_price && S.phase !== 'done') {
+    const fy = toY(S.frozen_price, mn, mx, H);
+    const flash = Math.sin(Date.now()/250) > 0;
+    if (flash) {
+      ctx.fillStyle='rgba(206,147,216,0.10)';
+      ctx.fillRect(0, fy-12, RW, 24);
+    }
+  }
+
+  // Price line (bid) — draw as area
+  const bidPts = hist.map((p,i) => ({ x:(i/(hist.length-1))*RW, y:toY(p.bid, mn, mx, H) }));
+  ctx.beginPath();
+  ctx.moveTo(bidPts[0].x, H);
+  ctx.lineTo(bidPts[0].x, bidPts[0].y);
+  bidPts.forEach(pt => ctx.lineTo(pt.x, pt.y));
+  ctx.lineTo(bidPts[bidPts.length-1].x, H);
+  ctx.closePath();
+  ctx.fillStyle='rgba(124,184,255,0.05)';
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.strokeStyle='#7cb8ff'; ctx.lineWidth=1.5; ctx.setLineDash([]);
+  bidPts.forEach((pt,i) => i===0 ? ctx.moveTo(pt.x,pt.y) : ctx.lineTo(pt.x,pt.y));
+  ctx.stroke();
+
+  // Ask line (dimmed)
+  ctx.beginPath();
+  ctx.strokeStyle='rgba(124,184,255,0.25)'; ctx.lineWidth=1;
+  hist.forEach((p,i) => {
+    const x=(i/(hist.length-1))*RW, y=toY(p.ask,mn,mx,H);
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+
+  // Current price labels (right side, floating)
+  const lastX = RW - 1;
+  ctx.fillStyle='#1565c0'; ctx.fillRect(lastX-1, yBid-8, 62, 16);
+  ctx.fillStyle='#fff'; ctx.font='10px Consolas'; ctx.textAlign='center';
+  ctx.fillText(curBid.toFixed(2), lastX+30, yBid+4);
+
+  // Phase watermark background tint
+  const tints = {
+    buy_open:  'rgba(21,101,192,0.04)',
+    both_open: 'rgba(26,107,58,0.04)',
+    sl_frozen: 'rgba(93,64,55,0.07)',
+    loser_wait:'rgba(74,20,140,0.07)',
+    done:      'rgba(27,94,32,0.06)',
+  };
+  if (tints[S.phase]) { ctx.fillStyle=tints[S.phase]; ctx.fillRect(0,0,W,H); }
+
+  // Phase label top-left
+  const phLbls = {
+    idle:       'IDLE',
+    buy_open:   'BUY OPEN — waiting +$0.20 to trigger SELL',
+    both_open:  'BOTH OPEN — monitoring TP & SL',
+    sl_frozen:  `SL FROZEN ❄️ @ ${S.frozen_price?.toFixed(2)} — not closing, waiting for winner TP`,
+    loser_wait: `WINNER TP FIRED ✓ — loser SLTP @ ${S.frozen_price?.toFixed(2)}, awaiting $${S.winner==='buy'?+(bid()-S.frozen_price).toFixed(2):+(S.frozen_price-ask()).toFixed(2)} retrace`,
+    done:       'TRADE COMPLETE',
+  };
+  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(4,4,Math.min(W-80,600),18);
+  ctx.fillStyle='#d4d9e8'; ctx.font='10px Consolas'; ctx.textAlign='left';
+  ctx.fillText(phLbls[S.phase]||'', 8, 16);
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABS
+// ─────────────────────────────────────────────────────────────
+function showTab(name, el) {
+  curTab = name;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('act'));
+  el.classList.add('act');
+  if (name==='pos')  renderPositions();
+  if (name==='hist') renderHistory();
+  if (name==='log')  renderLog();
+}
+
+// ─────────────────────────────────────────────────────────────
+// RESET
+// ─────────────────────────────────────────────────────────────
+function reset() {
+  if (ticker) clearInterval(ticker);
+  ticker = null;
+  tradeHistory = []; logLines = [];
+  S = makeState();
+  S.speed = parseInt(document.getElementById('spd').value);
+  document.getElementById('btn-arm').disabled = false;
+  updateUI();
+  drawChart();
+  renderPositions();
+}
+
+// ─────────────────────────────────────────────────────────────
+// SPEED SLIDER
+// ─────────────────────────────────────────────────────────────
+document.getElementById('spd').addEventListener('input', function() {
+  S.speed = parseInt(this.value);
+  document.getElementById('spd-lbl').textContent = this.value + 'x';
+});
+
+// ─────────────────────────────────────────────────────────────
+// BOOT
+// ─────────────────────────────────────────────────────────────
+
+// Seed price history so chart isn't empty
+for (let i=0; i<80; i++) {
+  const n = randn()*0.05;
+  S.mid = +(S.mid + n).toFixed(2);
+  S.px_hist.push({ mid:S.mid, bid:bid(), ask:ask(), t:-80+i });
+}
+
+resize(); drawChart(); renderPositions();
+
+// Start live tick (price always moves, strategy only active when armed)
+ticker = setInterval(tick, 80);
+</script>
+</body>
+</html>

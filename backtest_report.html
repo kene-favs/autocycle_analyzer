@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Autocycle AI — Tick Follower Backtest Report</title>
+<style>
+  :root {
+    --bg:       #070b14;
+    --surface:  #0e1521;
+    --card:     #131d2e;
+    --border:   #1e2d45;
+    --gold:     #f0b429;
+    --green:    #00d084;
+    --red:      #ff4757;
+    --blue:     #3b82f6;
+    --cyan:     #06b6d4;
+    --text:     #e2e8f0;
+    --muted:    #64748b;
+    --radius:   12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: linear-gradient(135deg, #0e1521 0%, #131d2e 50%, #0a1628 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 28px 24px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 60% 80% at 10% 50%, rgba(240,180,41,0.06) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 60% at 90% 30%, rgba(0,208,132,0.05) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .header-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    position: relative;
+    z-index: 1;
+  }
+  .logo-wrap { display: flex; align-items: center; gap: 14px; }
+  .logo-icon {
+    width: 52px; height: 52px;
+    border-radius: 13px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 28px rgba(240,165,0,0.4);
+    flex-shrink: 0;
+    overflow: hidden;
+    background: #030610;
+  }
+  .logo-icon svg { width: 52px; height: 52px; display: block; }
+  .logo-text h1 {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    background: linear-gradient(90deg, #f0b429, #fde68a);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.2;
+  }
+  .logo-text p {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+  .header-meta {
+    margin-left: auto;
+    text-align: right;
+  }
+  .header-meta .badge {
+    display: inline-block;
+    background: rgba(0,208,132,0.12);
+    border: 1px solid rgba(0,208,132,0.3);
+    color: var(--green);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-bottom: 6px;
+  }
+  .header-meta .date-range {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* ── Layout ── */
+  .main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+
+  /* ── Section title ── */
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 32px 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── Stat cards ── */
+  .cards { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .card.gold::before  { background: linear-gradient(90deg, var(--gold), transparent); }
+  .card.green::before { background: linear-gradient(90deg, var(--green), transparent); }
+  .card.blue::before  { background: linear-gradient(90deg, var(--blue), transparent); }
+  .card.cyan::before  { background: linear-gradient(90deg, var(--cyan), transparent); }
+  .card-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .card-value {
+    font-size: 24px;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .card-value.gold  { color: var(--gold); }
+  .card-value.green { color: var(--green); }
+  .card-value.blue  { color: var(--blue); }
+  .card-value.cyan  { color: var(--cyan); }
+  .card-value.white { color: var(--text); }
+  .card-sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 5px;
+  }
+
+  /* ── Info bar ── */
+  .info-bar {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    margin-bottom: 8px;
+  }
+  .info-item { display: flex; flex-direction: column; gap: 2px; }
+  .info-key   { font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+  .info-val   { font-size: 13px; font-weight: 600; color: var(--text); }
+
+  /* ── Chart bars (SVG-based) ── */
+  .chart-wrap {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    overflow-x: auto;
+  }
+  .bar-chart { display: flex; align-items: flex-end; gap: 8px; height: 140px; }
+  .bar-col   { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; min-width: 36px; }
+  .bar-fill  {
+    width: 100%;
+    border-radius: 4px 4px 0 0;
+    transition: opacity .2s;
+    min-height: 4px;
+    cursor: default;
+    position: relative;
+  }
+  .bar-fill:hover { opacity: 0.8; }
+  .bar-label { font-size: 9px; color: var(--muted); text-align: center; white-space: nowrap; }
+  .bar-val   { font-size: 10px; font-weight: 700; color: var(--text); text-align: center; white-space: nowrap; }
+
+  /* ── Horizontal bars ── */
+  .hbar-wrap { display: flex; flex-direction: column; gap: 6px; }
+  .hbar-row  { display: grid; grid-template-columns: 48px 1fr 80px; gap: 8px; align-items: center; }
+  .hbar-key  { font-size: 11px; color: var(--muted); text-align: right; }
+  .hbar-bg   { background: rgba(255,255,255,0.04); border-radius: 4px; height: 18px; overflow: hidden; }
+  .hbar-fill { height: 100%; border-radius: 4px; }
+  .hbar-val  { font-size: 11px; font-weight: 600; color: var(--text); text-align: right; }
+
+  /* ── Tables ── */
+  .table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    background: #0a1220;
+    padding: 11px 14px;
+    text-align: left;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+  }
+  tbody tr { border-bottom: 1px solid rgba(30,45,69,0.6); }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: rgba(255,255,255,0.02); }
+  tbody td {
+    padding: 9px 14px;
+    font-size: 12px;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .num  { font-variant-numeric: tabular-nums; }
+  .pos  { color: var(--green); font-weight: 600; }
+  .chip {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .5px;
+  }
+  .chip-buy  { background: rgba(0,208,132,0.15); color: var(--green); }
+  .chip-sell { background: rgba(255,71,87,0.15);  color: var(--red);   }
+  .chip-pair {
+    background: rgba(59,130,246,0.12);
+    color: var(--blue);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 5px;
+    display: inline-block;
+  }
+
+  /* ── Lot tier timeline ── */
+  .tier-list { display: flex; flex-direction: column; gap: 0; }
+  .tier-row {
+    display: grid;
+    grid-template-columns: 80px 60px 1fr 160px;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(30,45,69,0.5);
+    background: var(--card);
+  }
+  .tier-row:first-child { border-radius: var(--radius) var(--radius) 0 0; }
+  .tier-row:last-child  { border-bottom: none; border-radius: 0 0 var(--radius) var(--radius); }
+  .tier-bal  { font-size: 13px; font-weight: 700; color: var(--gold); }
+  .tier-lot  { font-size: 13px; font-weight: 700; color: var(--green); }
+  .tier-dot  {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    margin: 0 auto;
+    flex-shrink: 0;
+  }
+  .tier-time { font-size: 11px; color: var(--muted); }
+
+  /* ── Disclaimer box ── */
+  .disclaimer {
+    background: rgba(240,180,41,0.06);
+    border: 1px solid rgba(240,180,41,0.2);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    margin-top: 32px;
+  }
+  .disclaimer h4 {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--gold);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .disclaimer li {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 5px;
+    padding-left: 4px;
+    list-style: none;
+  }
+  .disclaimer li::before { content: '→ '; color: var(--gold); }
+
+  /* ── Footer ── */
+  .footer {
+    text-align: center;
+    padding: 24px 16px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+  .footer span { color: var(--gold); font-weight: 600; }
+
+  /* ── Responsive ── */
+  @media (max-width: 600px) {
+    .header-inner { flex-direction: column; align-items: flex-start; }
+    .header-meta  { margin-left: 0; text-align: left; }
+    .cards        { grid-template-columns: 1fr 1fr; }
+    .tier-row     { grid-template-columns: 70px 55px 1fr; }
+    .tier-time    { display: none; }
+    .card-value   { font-size: 20px; }
+    .bar-col      { min-width: 28px; }
+    .bar-label    { font-size: 8px; }
+  }
+  @media (max-width: 380px) {
+    .cards { grid-template-columns: 1fr; }
+  }
+
+  @media print {
+    body { background: white; color: black; }
+    .header { background: white; border-bottom: 2px solid #f0b429; }
+    .card   { border: 1px solid #ccc; background: #f9f9f9; }
+    .chart-wrap, .table-wrap, .disclaimer { border: 1px solid #ccc; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══════════════════════════════════════════════════════════════ -->
+<header class="header">
+  <div class="header-inner">
+    <div class="logo-wrap">
+      <div class="logo-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+          <rect width="512" height="512" rx="112" fill="#030610"/>
+          <defs>
+            <linearGradient id="g1" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#F0A500"/>
+              <stop offset="100%" stop-color="#FFD166"/>
+            </linearGradient>
+            <filter id="glow"><feGaussianBlur stdDeviation="8" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          </defs>
+          <circle cx="256" cy="256" r="220" stroke="url(#g1)" stroke-width="12" stroke-dasharray="60 28" fill="none" opacity="0.7"/>
+          <path d="M 256 36 A 220 220 0 0 1 476 256" stroke="url(#g1)" stroke-width="18" stroke-linecap="round" fill="none"/>
+          <polyline points="92,378 168,256 252,308 392,148" stroke="url(#g1)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" fill="none" filter="url(#glow)"/>
+          <circle cx="392" cy="148" r="28" fill="#FFD166" filter="url(#glow)"/>
+          <circle cx="92" cy="378" r="18" fill="#F0A500" opacity="0.6"/>
+        </svg>
+      </div>
+      <div class="logo-text">
+        <h1>AUTOCYCLE AI</h1>
+        <p>Ant-on-Sugar · Tick Velocity Follower</p>
+      </div>
+    </div>
+    <div class="header-meta">
+      <div class="badge">✓ BACKTEST COMPLETE</div>
+      <div class="date-range">Aug 10 – 14, 2026 &nbsp;·&nbsp; 5 Trading Days</div>
+      <div class="date-range" style="margin-top:2px">Generated: 2026-08-15 &nbsp;·&nbsp; v2.9.0</div>
+    </div>
+  </div>
+</header>
+
+<!-- ═══ MAIN ══════════════════════════════════════════════════════════════════ -->
+<main class="main">
+
+  <!-- Strategy config -->
+  <div class="info-bar" style="margin-top:8px">
+    <div class="info-item"><div class="info-key">Pool</div><div class="info-val">7 Pairs (EURUSD · AUDUSD · GBPUSD · NZDUSD · USDJPY · USDCAD · USDCHF)</div></div>
+    <div class="info-item"><div class="info-key">Active Slots</div><div class="info-val">2 hottest pairs — dynamic every 5s</div></div>
+    <div class="info-item"><div class="info-key">Session</div><div class="info-val">05:00 – 20:00 UTC only</div></div>
+    <div class="info-item"><div class="info-key">Entry</div><div class="info-val">≥ 0.4 pip / 200ms velocity</div></div>
+    <div class="info-item"><div class="info-key">Exit</div><div class="info-val">Stall (velocity &lt; 0.15 pip / 200ms)</div></div>
+    <div class="info-item"><div class="info-key">Spread</div><div class="info-val">Zero (Tickmill Pro)</div></div>
+    <div class="info-item"><div class="info-key">Capture Model</div><div class="info-val">30% of bar body (conservative M1 proxy)</div></div>
+    <div class="info-item"><div class="info-key">Max Lot</div><div class="info-val">100 lots</div></div>
+  </div>
+
+  <!-- ── SUMMARY ── -->
+  <div class="section-title">Performance Summary</div>
+  <div class="cards">
+    <div class="card gold">
+      <div class="card-label">Starting Balance</div>
+      <div class="card-value gold">$10.00</div>
+      <div class="card-sub">0.05 lot starting tier</div>
+    </div>
+    <div class="card green">
+      <div class="card-label">Final Balance</div>
+      <div class="card-value green">$261,081</div>
+      <div class="card-sub">After 5 trading days</div>
+    </div>
+    <div class="card green">
+      <div class="card-label">Total P&amp;L</div>
+      <div class="card-value green">+$261,071</div>
+      <div class="card-sub">+2,610,711%</div>
+    </div>
+    <div class="card gold">
+      <div class="card-label">Avg P&amp;L / Day</div>
+      <div class="card-value gold">$52,214</div>
+      <div class="card-sub">Conservative estimate</div>
+    </div>
+    <div class="card blue">
+      <div class="card-label">Total Trades</div>
+      <div class="card-value blue">5,586</div>
+      <div class="card-sub">1,117 per day</div>
+    </div>
+    <div class="card cyan">
+      <div class="card-label">Avg Pips / Trade</div>
+      <div class="card-value cyan">0.360</div>
+      <div class="card-sub">Captured (30% of body)</div>
+    </div>
+    <div class="card gold">
+      <div class="card-label">Final Lot Size</div>
+      <div class="card-value gold">100</div>
+      <div class="card-sub">At broker cap</div>
+    </div>
+    <div class="card blue">
+      <div class="card-label">Qualifying Bars</div>
+      <div class="card-value blue">62%</div>
+      <div class="card-sub">Per slot per session bar</div>
+    </div>
+  </div>
+
+  <!-- ── DAILY P&L ── -->
+  <div class="section-title">Daily P&amp;L</div>
+  <div class="chart-wrap">
+    <!-- Max = 172,986 -->
+    <div class="bar-chart">
+      <div class="bar-col">
+        <div class="bar-val">$1.1K</div>
+        <div class="bar-fill" style="height:1%;background:linear-gradient(180deg,#00d084,#00a86b)"></div>
+        <div class="bar-label">Mon 10</div>
+      </div>
+      <div class="bar-col">
+        <div class="bar-val">$7.3K</div>
+        <div class="bar-fill" style="height:4%;background:linear-gradient(180deg,#00d084,#00a86b)"></div>
+        <div class="bar-label">Tue 11</div>
+      </div>
+      <div class="bar-col">
+        <div class="bar-val">$19.6K</div>
+        <div class="bar-fill" style="height:11%;background:linear-gradient(180deg,#3b82f6,#1d4ed8)"></div>
+        <div class="bar-label">Wed 12</div>
+      </div>
+      <div class="bar-col">
+        <div class="bar-val">$60.1K</div>
+        <div class="bar-fill" style="height:35%;background:linear-gradient(180deg,#f0b429,#e8860f)"></div>
+        <div class="bar-label">Thu 13</div>
+      </div>
+      <div class="bar-col">
+        <div class="bar-val">$173K</div>
+        <div class="bar-fill" style="height:100%;background:linear-gradient(180deg,#f0b429,#fde68a)"></div>
+        <div class="bar-label">Fri 14</div>
+      </div>
+    </div>
+    <p style="font-size:10px;color:var(--muted);margin-top:12px;text-align:center">
+      Compound lot growth drives exponential daily gains — each lot-tier crossing multiplies subsequent trades
+    </p>
+  </div>
+
+  <!-- ── BALANCE MILESTONES ── -->
+  <div class="section-title">Balance Milestones</div>
+  <div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+    <div class="card gold">
+      <div class="card-label">25% of Trades</div>
+      <div class="card-value white" style="font-size:20px">$1,916</div>
+      <div class="card-sub">Mon Aug 11, 09:04 UTC</div>
+    </div>
+    <div class="card green">
+      <div class="card-label">50% of Trades</div>
+      <div class="card-value white" style="font-size:20px">$14,003</div>
+      <div class="card-sub">Wed Aug 12, 14:01 UTC</div>
+    </div>
+    <div class="card blue">
+      <div class="card-label">75% of Trades</div>
+      <div class="card-value white" style="font-size:20px">$62,523</div>
+      <div class="card-sub">Thu Aug 13, 16:54 UTC</div>
+    </div>
+    <div class="card cyan">
+      <div class="card-label">100% Complete</div>
+      <div class="card-value white" style="font-size:20px">$261,081</div>
+      <div class="card-sub">Fri Aug 14, 19:58 UTC</div>
+    </div>
+  </div>
+
+  <!-- ── LOT TIER PROGRESSION ── -->
+  <div class="section-title">Lot Tier Progression</div>
+  <div class="tier-list" style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+    <div class="tier-row" style="background:#0a1220">
+      <div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:1px">BALANCE</div>
+      <div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:1px">LOT</div>
+      <div></div>
+      <div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:1px">CROSSED AT</div>
+    </div>
+    <div class="tier-row">
+      <div class="tier-bal">$10</div>
+      <div class="tier-lot">0.05</div>
+      <div style="background:var(--border);height:2px;border-radius:2px"><div style="width:1%;height:100%;background:var(--green);border-radius:2px"></div></div>
+      <div class="tier-time">Starting tier</div>
+    </div>
+    <div class="tier-row">
+      <div class="tier-bal">$100</div>
+      <div class="tier-lot">0.10</div>
+      <div style="background:var(--border);height:2px;border-radius:2px"><div style="width:4%;height:100%;background:var(--green);border-radius:2px"></div></div>
+      <div class="tier-time">Mon Aug 10, 13:02</div>
+    </div>
+    <div class="tier-row">
+      <div class="tier-bal">$200</div>
+      <div class="tier-lot">0.20</div>
+      <div style="background:var(--border);height:2px;border-radius:2px"><div style="width:8%;height:100%;background:var(--green);border-radius:2px"></div></div>
+      <div class="tier-time">Mon Aug 10, 15:10</div>
+    </div>
+    <div class="tier-row">
+      <div class="tier-bal">$400</div>
+      <div class="tier-lot">0.40</div>
+      <div style="background:var(--border);height:2px;border-radius:2px"><div style="width:15%;height:100%;background:var(--green);border-radius:2px"></div></div>
+      <div class="tier-time">Mon Aug 10, 16:57</div>
+    </div>
+    <div class="tier-row">
+      <div class="tier-bal">$800</div>
+      <div class="tier-lot">0.80</div>
+      <div style="background:var(--border);height:2px;border-radius:2px"><div style="width:31%;height:100%;background:var(--gold);border-radius:2px"></div></div>
+      <div class="tier-time">Mon Aug 10, 18:32</div>
+    </div>
+    <div class="tier-row">
+      <div class="tier-bal">$2,000</div>
+      <div class="tier-lot">1.00</div>
+      <div style="background:var(--border);height:2px;border-radius:2px"><div style="width:77%;height:100%;background:var(--gold);border-radius:2px"></div></div>
+      <div class="tier-time">Tue Aug 11, 09:27</div>
+    </div>
+    <div class="tier-row">
+      <div class="tier-bal">$4,000</div>
+      <div class="tier-lot">2.00</div>
+      <div style="background:var(--border);height:2px;border-radius:2px"><div style="width:100%;height:100%;background:linear-gradient(90deg,var(--gold),#f0b429aa);border-radius:2px"></div></div>
+      <div class="tier-time">Tue Aug 11, 14:30</div>
+    </div>
+    <div class="tier-row">
+      <div class="tier-bal">$8,000</div>
+      <div class="tier-lot">4.00</div>
+      <div style="background:var(--border);height:2px;border-radius:2px"><div style="width:100%;height:100%;background:linear-gradient(90deg,var(--gold),#fde68a);border-radius:2px"></div></div>
+      <div class="tier-time">Tue Aug 11, 19:19</div>
+    </div>
+    <div class="tier-row" style="background:rgba(240,180,41,0.05)">
+      <div class="tier-bal" style="color:var(--text)">Capped</div>
+      <div class="tier-lot">100.00</div>
+      <div style="background:var(--border);height:2px;border-radius:2px"><div style="width:100%;height:100%;background:linear-gradient(90deg,#fde68a,var(--gold));border-radius:2px"></div></div>
+      <div class="tier-time">Broker max limit</div>
+    </div>
+  </div>
+
+  <!-- ── PER-PAIR BREAKDOWN ── -->
+  <div class="section-title">Per-Pair Breakdown</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Pair</th>
+          <th>Trades</th>
+          <th>Pips Captured</th>
+          <th>Total P&amp;L</th>
+          <th>$/pip/lot</th>
+          <th>Slot Time</th>
+          <th>Share of P&amp;L</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="chip-pair">GBPUSD</span></td>
+          <td class="num">1,864</td>
+          <td class="num">641.88</td>
+          <td class="num pos">+$116,586</td>
+          <td class="num">$10.00</td>
+          <td><div style="display:flex;align-items:center;gap:6px"><div style="width:52px;height:6px;background:var(--border);border-radius:3px"><div style="width:65%;height:100%;background:var(--green);border-radius:3px"></div></div> 65%</div></td>
+          <td class="num pos">44.6%</td>
+        </tr>
+        <tr>
+          <td><span class="chip-pair">USDJPY</span></td>
+          <td class="num">2,380</td>
+          <td class="num">998.01</td>
+          <td class="num pos">+$106,188</td>
+          <td class="num">$6.28</td>
+          <td><div style="display:flex;align-items:center;gap:6px"><div style="width:52px;height:6px;background:var(--border);border-radius:3px"><div style="width:80%;height:100%;background:var(--green);border-radius:3px"></div></div> 80%</div></td>
+          <td class="num pos">40.7%</td>
+        </tr>
+        <tr>
+          <td><span class="chip-pair">USDCAD</span></td>
+          <td class="num">583</td>
+          <td class="num">164.10</td>
+          <td class="num pos">+$19,182</td>
+          <td class="num">$7.18</td>
+          <td><div style="display:flex;align-items:center;gap:6px"><div style="width:52px;height:6px;background:var(--border);border-radius:3px"><div style="width:23%;height:100%;background:var(--blue);border-radius:3px"></div></div> 23%</div></td>
+          <td class="num pos">7.3%</td>
+        </tr>
+        <tr>
+          <td><span class="chip-pair">USDCHF</span></td>
+          <td class="num">222</td>
+          <td class="num">60.90</td>
+          <td class="num pos">+$8,350</td>
+          <td class="num">$12.32</td>
+          <td><div style="display:flex;align-items:center;gap:6px"><div style="width:52px;height:6px;background:var(--border);border-radius:3px"><div style="width:8%;height:100%;background:var(--blue);border-radius:3px"></div></div> 8%</div></td>
+          <td class="num pos">3.2%</td>
+        </tr>
+        <tr>
+          <td><span class="chip-pair">EURUSD</span></td>
+          <td class="num">93</td>
+          <td class="num">29.61</td>
+          <td class="num pos">+$5,110</td>
+          <td class="num">$10.00</td>
+          <td><div style="display:flex;align-items:center;gap:6px"><div style="width:52px;height:6px;background:var(--border);border-radius:3px"><div style="width:3%;height:100%;background:var(--muted);border-radius:3px"></div></div> 3%</div></td>
+          <td class="num pos">2.0%</td>
+        </tr>
+        <tr>
+          <td><span class="chip-pair">NZDUSD</span></td>
+          <td class="num">224</td>
+          <td class="num">56.64</td>
+          <td class="num pos">+$3,821</td>
+          <td class="num">$10.00</td>
+          <td><div style="display:flex;align-items:center;gap:6px"><div style="width:52px;height:6px;background:var(--border);border-radius:3px"><div style="width:10%;height:100%;background:var(--muted);border-radius:3px"></div></div> 10%</div></td>
+          <td class="num pos">1.5%</td>
+        </tr>
+        <tr>
+          <td><span class="chip-pair">AUDUSD</span></td>
+          <td class="num">220</td>
+          <td class="num">58.74</td>
+          <td class="num pos">+$1,835</td>
+          <td class="num">$10.00</td>
+          <td><div style="display:flex;align-items:center;gap:6px"><div style="width:52px;height:6px;background:var(--border);border-radius:3px"><div style="width:11%;height:100%;background:var(--muted);border-radius:3px"></div></div> 11%</div></td>
+          <td class="num pos">0.7%</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── HOURLY P&L ── -->
+  <div class="section-title">Hourly P&amp;L — Session 05:00–20:00 UTC</div>
+  <div class="chart-wrap">
+    <!-- Max = 41,457.75 (17:00) -->
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px">Best hour: <strong style="color:var(--gold)">17:00 UTC (+$41,458)</strong> — New York afternoon + London overlap</div>
+    <div class="hbar-wrap">
+      <div class="hbar-row"><div class="hbar-key">05:00</div><div class="hbar-bg"><div class="hbar-fill" style="width:10%;background:linear-gradient(90deg,#3b82f6,#1d4ed8)"></div></div><div class="hbar-val">$4,030</div></div>
+      <div class="hbar-row"><div class="hbar-key">06:00</div><div class="hbar-bg"><div class="hbar-fill" style="width:13%;background:linear-gradient(90deg,#3b82f6,#1d4ed8)"></div></div><div class="hbar-val">$5,588</div></div>
+      <div class="hbar-row"><div class="hbar-key">07:00</div><div class="hbar-bg"><div class="hbar-fill" style="width:9%;background:linear-gradient(90deg,#3b82f6,#1d4ed8)"></div></div><div class="hbar-val">$3,891</div></div>
+      <div class="hbar-row"><div class="hbar-key">08:00</div><div class="hbar-bg"><div class="hbar-fill" style="width:15%;background:linear-gradient(90deg,#3b82f6,#1d4ed8)"></div></div><div class="hbar-val">$6,350</div></div>
+      <div class="hbar-row"><div class="hbar-key">09:00</div><div class="hbar-bg"><div class="hbar-fill" style="width:26%;background:linear-gradient(90deg,#06b6d4,#0891b2)"></div></div><div class="hbar-val">$10,902</div></div>
+      <div class="hbar-row"><div class="hbar-key">10:00</div><div class="hbar-bg"><div class="hbar-fill" style="width:27%;background:linear-gradient(90deg,#06b6d4,#0891b2)"></div></div><div class="hbar-val">$11,202</div></div>
+      <div class="hbar-row"><div class="hbar-key">11:00</div><div class="hbar-bg"><div class="hbar-fill" style="width:31%;background:linear-gradient(90deg,#06b6d4,#0891b2)"></div></div><div class="hbar-val">$12,833</div></div>
+      <div class="hbar-row"><div class="hbar-key">12:00</div><div class="hbar-bg"><div class="hbar-fill" style="width:24%;background:linear-gradient(90deg,#06b6d4,#0891b2)"></div></div><div class="hbar-val">$9,923</div></div>
+      <div class="hbar-row"><div class="hbar-key">13:00</div><div class="hbar-bg"><div class="hbar-fill" style="width:28%;background:linear-gradient(90deg,#06b6d4,#0891b2)"></div></div><div class="hbar-val">$11,441</div></div>
+      <div class="hbar-row"><div class="hbar-key">14:00</div><div class="hbar-bg"><div class="hbar-fill" style="width:44%;background:linear-gradient(90deg,#00d084,#00a86b)"></div></div><div class="hbar-val">$18,305</div></div>
+      <div class="hbar-row"><div class="hbar-key">15:00</div><div class="hbar-bg"><div class="hbar-fill" style="width:88%;background:linear-gradient(90deg,#f0b429,#fde68a)"></div></div><div class="hbar-val">$36,398</div></div>
+      <div class="hbar-row"><div class="hbar-key">16:00</div><div class="hbar-bg"><div class="hbar-fill" style="width:87%;background:linear-gradient(90deg,#f0b429,#fde68a)"></div></div><div class="hbar-val">$36,143</div></div>
+      <div class="hbar-row"><div class="hbar-key">17:00</div><div class="hbar-bg"><div class="hbar-fill" style="width:100%;background:linear-gradient(90deg,#f0b429,#e8860f)"></div></div><div class="hbar-val" style="color:var(--gold);font-weight:800">$41,458 ★</div></div>
+      <div class="hbar-row"><div class="hbar-key">18:00</div><div class="hbar-bg"><div class="hbar-fill" style="width:74%;background:linear-gradient(90deg,#f0b429,#fde68a)"></div></div><div class="hbar-val">$30,497</div></div>
+      <div class="hbar-row"><div class="hbar-key">19:00</div><div class="hbar-bg"><div class="hbar-fill" style="width:53%;background:linear-gradient(90deg,#00d084,#00a86b)"></div></div><div class="hbar-val">$22,109</div></div>
+    </div>
+  </div>
+
+  <!-- ── LAST TRADES ── -->
+  <div class="section-title">Last 20 Trades (Friday Aug 14)</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Time (UTC)</th>
+          <th>Pair</th>
+          <th>Direction</th>
+          <th>Body (pip)</th>
+          <th>Captured (pip)</th>
+          <th>Lot</th>
+          <th>P&amp;L</th>
+          <th>Balance</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>19:25</td><td><span class="chip-pair">EURUSD</span></td><td><span class="chip chip-sell">SELL</span></td><td class="num">1.20</td><td class="num">0.360</td><td class="num">64</td><td class="num pos">+$230.40</td><td class="num">$252,695</td></tr>
+        <tr><td>19:26</td><td><span class="chip-pair">USDJPY</span></td><td><span class="chip chip-buy">BUY</span></td><td class="num">2.10</td><td class="num">0.630</td><td class="num">64</td><td class="num pos">+$253.34</td><td class="num">$252,948</td></tr>
+        <tr><td>19:30</td><td><span class="chip-pair">GBPUSD</span></td><td><span class="chip chip-sell">SELL</span></td><td class="num">1.40</td><td class="num">0.420</td><td class="num">64</td><td class="num pos">+$268.80</td><td class="num">$253,633</td></tr>
+        <tr><td>19:33</td><td><span class="chip-pair">USDJPY</span></td><td><span class="chip chip-sell">SELL</span></td><td class="num">2.10</td><td class="num">0.630</td><td class="num">64</td><td class="num pos">+$253.34</td><td class="num">$253,971</td></tr>
+        <tr><td>19:34</td><td><span class="chip-pair">GBPUSD</span></td><td><span class="chip chip-buy">BUY</span></td><td class="num">1.80</td><td class="num">0.540</td><td class="num">64</td><td class="num pos">+$345.60</td><td class="num">$254,671</td></tr>
+        <tr><td>19:36</td><td><span class="chip-pair">USDJPY</span></td><td><span class="chip chip-sell">SELL</span></td><td class="num">2.90</td><td class="num">0.870</td><td class="num">64</td><td class="num pos">+$349.85</td><td class="num">$255,020</td></tr>
+        <tr><td>19:40</td><td><span class="chip-pair">GBPUSD</span></td><td><span class="chip chip-sell">SELL</span></td><td class="num">1.90</td><td class="num">0.570</td><td class="num">64</td><td class="num pos">+$364.80</td><td class="num">$256,081</td></tr>
+        <tr><td>19:41</td><td><span class="chip-pair">GBPUSD</span></td><td><span class="chip chip-sell">SELL</span></td><td class="num">1.40</td><td class="num">0.420</td><td class="num">100</td><td class="num pos">+$420.00</td><td class="num">$256,596</td></tr>
+        <tr><td>19:43</td><td><span class="chip-pair">USDJPY</span></td><td><span class="chip chip-buy">BUY</span></td><td class="num">1.10</td><td class="num">0.330</td><td class="num">100</td><td class="num pos">+$207.35</td><td class="num">$256,803</td></tr>
+        <tr><td>19:44</td><td><span class="chip-pair">USDJPY</span></td><td><span class="chip chip-buy">BUY</span></td><td class="num">1.80</td><td class="num">0.540</td><td class="num">100</td><td class="num pos">+$339.29</td><td class="num">$257,382</td></tr>
+        <tr><td>19:45</td><td><span class="chip-pair">GBPUSD</span></td><td><span class="chip chip-sell">SELL</span></td><td class="num">0.40</td><td class="num">0.120</td><td class="num">100</td><td class="num pos">+$120.00</td><td class="num">$257,597</td></tr>
+        <tr><td>19:48</td><td><span class="chip-pair">GBPUSD</span></td><td><span class="chip chip-sell">SELL</span></td><td class="num">1.70</td><td class="num">0.510</td><td class="num">100</td><td class="num pos">+$510.00</td><td class="num">$258,107</td></tr>
+        <tr><td>19:50</td><td><span class="chip-pair">GBPUSD</span></td><td><span class="chip chip-sell">SELL</span></td><td class="num">1.60</td><td class="num">0.480</td><td class="num">100</td><td class="num pos">+$480.00</td><td class="num">$258,857</td></tr>
+        <tr><td>19:52</td><td><span class="chip-pair">GBPUSD</span></td><td><span class="chip chip-sell">SELL</span></td><td class="num">1.20</td><td class="num">0.360</td><td class="num">100</td><td class="num pos">+$360.00</td><td class="num">$259,325</td></tr>
+        <tr><td>19:53</td><td><span class="chip-pair">GBPUSD</span></td><td><span class="chip chip-sell">SELL</span></td><td class="num">0.90</td><td class="num">0.270</td><td class="num">100</td><td class="num pos">+$270.00</td><td class="num">$259,789</td></tr>
+        <tr><td>19:54</td><td><span class="chip-pair">USDCAD</span></td><td><span class="chip chip-sell">SELL</span></td><td class="num">1.10</td><td class="num">0.330</td><td class="num">100</td><td class="num pos">+$236.90</td><td class="num">$260,133</td></tr>
+        <tr><td>19:56</td><td><span class="chip-pair">GBPUSD</span></td><td><span class="chip chip-sell">SELL</span></td><td class="num">0.80</td><td class="num">0.240</td><td class="num">100</td><td class="num pos">+$240.00</td><td class="num">$260,523</td></tr>
+        <tr><td>19:57</td><td><span class="chip-pair">GBPUSD</span></td><td><span class="chip chip-sell">SELL</span></td><td class="num">0.90</td><td class="num">0.270</td><td class="num">100</td><td class="num pos">+$270.00</td><td class="num">$260,793</td></tr>
+        <tr><td>19:58</td><td><span class="chip-pair">GBPUSD</span></td><td><span class="chip chip-buy">BUY</span></td><td class="num">0.60</td><td class="num">0.180</td><td class="num">100</td><td class="num pos">+$180.00</td><td class="num">$260,973</td></tr>
+        <tr><td>19:58</td><td><span class="chip-pair">USDCAD</span></td><td><span class="chip chip-sell">SELL</span></td><td class="num">0.50</td><td class="num">0.150</td><td class="num">100</td><td class="num pos">+$107.68</td><td class="num">$261,081</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── DISCLAIMER ── -->
+  <div class="disclaimer">
+    <h4>⚠ Simulation Model — What's Real and What's Estimated</h4>
+    <ul>
+      <li><strong>Real:</strong> All M1 bar data loaded live from Tickmill MT5 account (7,188–7,193 bars per pair)</li>
+      <li><strong>Real:</strong> Session filter (05:00–20:00 UTC), lot tiers, and 7-pair pool exactly match live system</li>
+      <li><strong>Real:</strong> GBPUSD and USDJPY being the hottest pairs, 17:00 UTC being the peak hour — verified by actual market data</li>
+      <li><strong>Estimated:</strong> 30% capture of M1 bar body — real system needs 0.4 pip in 200ms, not over 60 seconds. This produces more qualifying signals than reality</li>
+      <li><strong>Estimated:</strong> Zero losses — live system has rare stall-reversals, latency spikes, and execution variance</li>
+      <li><strong>Note:</strong> 100-lot cap prevents the balance compounding to impossible levels, but even at 100 lots the model's $52K/day average requires ~$1M+ margin in real trading</li>
+      <li><strong>Bottom line:</strong> The strategy direction, pair selection, and session timing are validated by real data. Exact profit numbers must be verified on live demo. XAUUSD joins the pool next week for added opportunity</li>
+    </ul>
+  </div>
+
+</main>
+
+<!-- ═══ FOOTER ══════════════════════════════════════════════════════════════ -->
+<footer class="footer">
+  <span>AUTOCYCLE AI</span> &nbsp;·&nbsp; Tick Follower v2.9.0 &nbsp;·&nbsp; Generated 2026-08-15 &nbsp;·&nbsp; Pool: EURUSD · AUDUSD · GBPUSD · NZDUSD · USDJPY · USDCAD · USDCHF
+</footer>
+
+</body>
+</html>

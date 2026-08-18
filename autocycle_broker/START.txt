@@ -1,0 +1,188 @@
+══════════════════════════════════════════════════════════════════
+  Autocycle AI Broker v3.0 — VPS Startup & Deployment Guide
+══════════════════════════════════════════════════════════════════
+
+WHAT THIS IS
+  A personal middleware broker that sits between your bot and Vantage.
+  It opens matching BUY+SELL internally at mid price (net = $0).
+  Only ONE real Vantage hedge is sent on the winning continuation side.
+  Vantage never sees the losing leg.
+
+──────────────────────────────────────────────────────────────────
+FILES TO UPLOAD TO VPS
+──────────────────────────────────────────────────────────────────
+Upload everything inside autocycle-analyzer/:
+
+  autocycle-analyzer/
+    autocycle_broker/
+      __init__.py
+      __main__.py
+      broker.py
+      book.py
+      engine.py
+      config.py
+      requirements.txt
+    templates/
+      dashboard.html
+    app.py
+    .env                   ← create/edit this on the VPS (see below)
+
+  autocycle_gold/
+    lock_scalper_bot.py
+    .env                   ← same .env or copy it here too
+
+Do NOT upload:
+  broker_data.db           ← auto-created on first run
+  logs/                    ← auto-created on first run
+  __pycache__/
+
+──────────────────────────────────────────────────────────────────
+.env FILE (create this on the VPS)
+──────────────────────────────────────────────────────────────────
+# ── MT5 credentials ────────────────────────────────────────────
+MT5_LOGIN=your_mt5_login
+MT5_PASSWORD=your_mt5_password
+MT5_SERVER=Vantage-Demo          # change to Vantage-Live for real money
+
+# ── Dual-symbol schedule (set to true to enable Gold+BTC auto-switch)
+ENABLE_SCHEDULE=true             # true=auto | false=single symbol below
+MT5_SYMBOL=XAUUSD+               # used only when ENABLE_SCHEDULE=false
+CONTRACT_SIZE=100                 # used only when ENABLE_SCHEDULE=false
+
+# ── Telegram (for trade alerts) ────────────────────────────────
+TELEGRAM_TOKEN=your_bot_token
+TELEGRAM_CHANNEL_ID=-1003900504820
+
+# ── Broker security ────────────────────────────────────────────
+BROKER_SECRET=pick_any_long_random_string
+BROKER_URL=http://localhost:8001
+
+# ── Simulation (remove or set false for live trading) ──────────
+# SIMULATE=true
+# SIM_BASE_PRICE=3350.00
+# SIM_ATR=2.00
+# SIM_COOLDOWN_SECS=10
+
+──────────────────────────────────────────────────────────────────
+DUAL-SYMBOL SCHEDULE (when ENABLE_SCHEDULE=true)
+──────────────────────────────────────────────────────────────────
+  GOLD (XAUUSD+)  Mon–Fri  05:00–21:00 London  ← London + NY session
+  BTC  (BTCUSD)   Mon–Fri  21:00–05:00 London  ← Asian night session
+  BTC  (BTCUSD)   All weekend (Sat 00:00 → Mon 05:00)
+
+  The broker picks the right instrument automatically based on London time.
+  Dashboard header shows: "XAUUSD+ · AUTO · mid-price matching"
+  or "BTCUSD · AUTO · mid-price matching" depending on the active slot.
+
+Dollar risk equivalence:
+  Gold: SL 2.00–5.00 price dist × 0.01 lot × CS=100 = $2–$5 risk
+  BTC:  SL 200–500 price dist × 0.01 lot × CS=1    = $2–$5 risk
+  Same dollar risk both instruments.
+
+──────────────────────────────────────────────────────────────────
+WEEKEND / OFFLINE TESTING (Simulate mode)
+──────────────────────────────────────────────────────────────────
+Add to .env:
+  SIMULATE=true
+  SIM_BASE_PRICE=3350.00     # starting fake price
+  SIM_ATR=2.00               # fake ATR (determines SL/TP sizes)
+  SIM_COOLDOWN_SECS=10       # 10s between cycles (not 4 minutes)
+
+What simulate mode does:
+  - Bypasses hours check (works 24/7 including weekends)
+  - Generates synthetic price that drifts: BUY SL fires in ~12s
+  - Continues to TP in ~3s → full cycle in ~15s
+  - Fakes Vantage hedge (no real order sent)
+  - All P&L, balance, history, and Telegram alerts work normally
+  - Dashboard shows purple "SIMULATE" badge
+
+To disable: remove SIMULATE=true or set SIMULATE=false
+
+──────────────────────────────────────────────────────────────────
+STEP 1 — Install dependencies (run ONCE on VPS)
+──────────────────────────────────────────────────────────────────
+  cd autocycle-analyzer
+  pip install -r autocycle_broker/requirements.txt
+  pip install flask requests
+
+──────────────────────────────────────────────────────────────────
+STEP 2 — Start the Autocycle AI Broker (Terminal 1)
+──────────────────────────────────────────────────────────────────
+  cd autocycle-analyzer
+  python -m autocycle_broker
+
+  You should see:
+    Autocycle AI Broker listening on port 8001 | symbol=XAUUSD+ | server=Vantage-Demo
+
+  Test it is alive:
+    curl http://localhost:8001/health
+
+  Broker logs → autocycle-analyzer/logs/autocycle_broker.log
+
+──────────────────────────────────────────────────────────────────
+STEP 3 — Start the Flask Dashboard (Terminal 2)
+──────────────────────────────────────────────────────────────────
+  cd autocycle-analyzer
+  python app.py
+
+  Dashboard → http://your-vps-ip:5000
+
+──────────────────────────────────────────────────────────────────
+STEP 4 — Start the Lock Scalper Bot (Terminal 3)
+──────────────────────────────────────────────────────────────────
+  cd autocycle_gold
+  python lock_scalper_bot.py
+
+  The bot waits up to 60s for the broker to be ready, then polls
+  every 2s and calls POST /open when IDLE + in-hours.
+
+  Bot logs → autocycle_gold/logs/lock_scalper_bot.log
+
+──────────────────────────────────────────────────────────────────
+STARTUP ORDER — MATTERS
+──────────────────────────────────────────────────────────────────
+  1. Broker first  (python -m autocycle_broker)
+  2. Dashboard     (python app.py)          ← optional, for web UI
+  3. Bot last      (python lock_scalper_bot.py)
+
+  The bot waits for broker /health to return 200 before doing
+  anything. If you start broker and bot simultaneously, the bot
+  just waits and retries every 2s for up to 60s — no crash.
+
+──────────────────────────────────────────────────────────────────
+SWITCHING DEMO → LIVE (when ready)
+──────────────────────────────────────────────────────────────────
+  Edit .env:
+    MT5_SERVER=Vantage-Live
+    MT5_LOGIN=your_live_login
+    MT5_PASSWORD=your_live_password
+
+  Restart broker and bot. Zero code changes needed.
+
+──────────────────────────────────────────────────────────────────
+PROCESS OVERVIEW
+──────────────────────────────────────────────────────────────────
+  Flask    (port 5000) ← dashboard + proxy to broker API
+  Broker   (port 8001) ← FastAPI, internal order book, engine
+  MT5      ← price feed + Vantage hedge orders (1 per winning cycle)
+  Bot      ← polls broker, sends Telegram + dashboard updates
+
+  Vantage sees: ONE hedge position per winning cycle only.
+  Internal: BUY+SELL matched at mid (net = $0 until SL fires).
+  Your balance: tracked internally in broker_data.db.
+
+──────────────────────────────────────────────────────────────────
+KEEP IT RUNNING (optional — use screen or pm2)
+──────────────────────────────────────────────────────────────────
+  # Using screen (Linux)
+  screen -S broker  → python -m autocycle_broker  → Ctrl+A D
+  screen -S dash    → python app.py               → Ctrl+A D
+  screen -S bot     → python lock_scalper_bot.py  → Ctrl+A D
+
+  # Or use pm2 (Node process manager, works with Python too)
+  pm2 start "python -m autocycle_broker" --name broker
+  pm2 start "python app.py"              --name dashboard
+  pm2 start "python lock_scalper_bot.py" --name bot --cwd /path/to/autocycle_gold
+  pm2 save
+
+══════════════════════════════════════════════════════════════════
